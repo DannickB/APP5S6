@@ -12,12 +12,14 @@
 #include <string>
 #include <cstring>
 #include <thread>
+#include <semaphore>
 
 namespace gif643 {
 
 const size_t    BPP         = 4;    // Bytes per pixel
 const float     ORG_WIDTH   = 48.0; // Original SVG image width in px.
 const int       NUM_THREADS = 1;    // Default value, changed by argv. 
+std::binary_semaphore signal{1};
 
 using PNGDataVec = std::vector<char>;
 using PNGDataPtr = std::shared_ptr<PNGDataVec>;
@@ -144,7 +146,7 @@ public:
                 std::string msg = "Cannot parse '" + fname_in + "'.";
                 throw std::runtime_error(msg.c_str());
             }
-
+            signal.acquire();
             // Raster it ...
             std::vector<unsigned char> image_data(image_size, 0);
             rast = nsvgCreateRasterizer();
@@ -156,12 +158,12 @@ public:
                           &image_data[0],
                           width,
                           height,
-                          stride); 
+                          stride);
 
             // Compress it ...
             PNGWriter writer;
             writer(width, height, BPP, &image_data[0], stride);
-
+            signal.release();
             // Write it out ...
             std::ofstream file_out(fname_out, std::ofstream::binary);
             auto data = writer.getData();
@@ -235,6 +237,8 @@ public:
                       << std::endl;
             n_threads = NUM_THREADS;
         }
+
+        std::cout << "Number of active threads: "<< n_threads << std::endl;
 
         for (int i = 0; i < n_threads; ++i) {
             queue_threads_.push_back(
@@ -343,15 +347,19 @@ int main(int argc, char** argv)
     using namespace gif643;
 
     std::ifstream file_in;
-
-    if (argc >= 2 && (strcmp(argv[1], "-") != 0)) {
-        file_in.open(argv[1]);
+    int threads = NUM_THREADS;
+    if (argc >= 2){
+        threads = atoi(argv[1]);
+    }
+    
+    if (argc >= 3 && (strcmp(argv[2], "-") != 0)) {
+        file_in.open(argv[2]);
         if (file_in.is_open()) {
             std::cin.rdbuf(file_in.rdbuf());
-            std::cerr << "Using " << argv[1] << "..." << std::endl;
+            std::cerr << "Using " << argv[2] << "..." << std::endl;
         } else {
             std::cerr   << "Error: Cannot open '"
-                        << argv[1] 
+                        << argv[2] 
                         << "', using stdin (press CTRL-D for EOF)." 
                         << std::endl;
         }
@@ -359,8 +367,9 @@ int main(int argc, char** argv)
         std::cerr << "Using stdin (press CTRL-D for EOF)." << std::endl;
     }
 
+
     // TODO: change the number of threads from args.
-    Processor proc;
+    Processor proc(threads);
     
     while (!std::cin.eof()) {
 

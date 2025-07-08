@@ -57,7 +57,7 @@ mkdir output/
 Pour convertir toutes les images dans data/ vers le dossier build/output/ à une
 taille de 480 pixels.
 
-**scripts/lab_ex4.py Quatrième exercice du laboratoire
+**scripts/lab_ex4.py** Quatrième exercice du laboratoire
 
 **scripts/multi_proc.py** Un script Python permettant de lancer plusieurs
 sous-processus asset_conv. Attend la fin de la liste de tâches, puis divise en N

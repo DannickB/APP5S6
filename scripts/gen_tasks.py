@@ -13,6 +13,7 @@ if len(sys.argv) >= 3:
 if len(sys.argv) >= 4:
     width = int(sys.argv[3])
 
+
 os.chdir(dirname)
 files = glob.glob("*.svg")
 
