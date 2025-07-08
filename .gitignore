@@ -1,5 +1,4 @@
 *.a
 *.png
-build*
 .DS_Store
 __pycache__

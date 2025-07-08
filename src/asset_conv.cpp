@@ -331,8 +331,10 @@ private:
     {
         while (should_run_) {
             if (!task_queue_.empty()) {
+                signal.acquire();
                 TaskDef task_def = task_queue_.front();
                 task_queue_.pop();
+                signal.release();
                 TaskRunner runner(task_def);
                 runner();
             }
@@ -368,7 +370,6 @@ int main(int argc, char** argv)
     }
 
 
-    // TODO: change the number of threads from args.
     Processor proc(threads);
     
     while (!std::cin.eof()) {
