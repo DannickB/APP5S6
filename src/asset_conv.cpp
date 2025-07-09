@@ -13,13 +13,16 @@
 #include <cstring>
 #include <thread>
 #include <semaphore>
+#include <mutex>
 
 namespace gif643 {
 
 const size_t    BPP         = 4;    // Bytes per pixel
 const float     ORG_WIDTH   = 48.0; // Original SVG image width in px.
 const int       NUM_THREADS = 1;    // Default value, changed by argv. 
-std::binary_semaphore signal{1};
+std::binary_semaphore take_from_queu_signal{1};
+std::counting_semaphore queu_updated_signal{0};
+std::mutex queu_mutex;
 
 using PNGDataVec = std::vector<char>;
 using PNGDataPtr = std::shared_ptr<PNGDataVec>;
@@ -146,7 +149,6 @@ public:
                 std::string msg = "Cannot parse '" + fname_in + "'.";
                 throw std::runtime_error(msg.c_str());
             }
-            signal.acquire();
             // Raster it ...
             std::vector<unsigned char> image_data(image_size, 0);
             rast = nsvgCreateRasterizer();
@@ -163,7 +165,6 @@ public:
             // Compress it ...
             PNGWriter writer;
             writer(width, height, BPP, &image_data[0], stride);
-            signal.release();
             // Write it out ...
             std::ofstream file_out(fname_out, std::ofstream::binary);
             auto data = writer.getData();
@@ -315,7 +316,11 @@ public:
         TaskDef def;
         if (parse(line_org, def)) {
             std::cerr << "Queueing task '" << line_org << "'." << std::endl;
-            task_queue_.push(def);
+            {
+                std::lock_guard<std::mutex> lock(queu_mutex);
+                task_queue_.push(def);
+                queu_updated_signal.release();
+            }
         }
     }
 
@@ -330,11 +335,12 @@ private:
     void processQueue()
     {
         while (should_run_) {
+            queu_updated_signal.acquire();
             if (!task_queue_.empty()) {
-                signal.acquire();
+                take_from_queu_signal.acquire();
                 TaskDef task_def = task_queue_.front();
                 task_queue_.pop();
-                signal.release();
+                take_from_queu_signal.release();
                 TaskRunner runner(task_def);
                 runner();
             }
