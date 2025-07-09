@@ -14,6 +14,7 @@
 #include <thread>
 #include <semaphore>
 #include <mutex>
+#include <string>
 
 namespace gif643 {
 
@@ -22,6 +23,7 @@ const float     ORG_WIDTH   = 48.0; // Original SVG image width in px.
 const int       NUM_THREADS = 1;    // Default value, changed by argv. 
 std::binary_semaphore take_from_queu_signal{1};
 std::counting_semaphore queu_updated_signal{0};
+std::mutex cache_mutex_;
 std::mutex queu_mutex;
 
 using PNGDataVec = std::vector<char>;
@@ -142,7 +144,11 @@ public:
         NSVGimage*          image_in        = nullptr;
         NSVGrasterizer*     rast            = nullptr;
 
+    
+        
+    
         try {
+
             // Read the file ...
             image_in = nsvgParseFromFile(fname_in.c_str(), "px", 0);
             if (image_in == nullptr) {
@@ -335,14 +341,25 @@ private:
     void processQueue()
     {
         while (should_run_) {
+
             queu_updated_signal.acquire();
+
             if (!task_queue_.empty()) {
+
                 take_from_queu_signal.acquire();
                 TaskDef task_def = task_queue_.front();
                 task_queue_.pop();
+
+                std::string key = task_def.fname_in + ";" + std::to_string(task_def.size);
+                auto it = png_cache_.find(key);
+                
                 take_from_queu_signal.release();
-                TaskRunner runner(task_def);
-                runner();
+
+                if ( it == png_cache_.end()) {
+                    png_cache_.insert({key, nullptr});
+                    TaskRunner runner(task_def);
+                    runner();
+                }
             }
         }
     }
