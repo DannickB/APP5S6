@@ -379,9 +379,9 @@ public:
         if (parse(line_org, def)) {
             std::cerr << "Queueing task '" << line_org << "'." << std::endl;
             {
-                std::lock_guard<std::mutex> lock(queu_mutex);
+                std::lock_guard<std::mutex> lock(queu_mutex);// Lock the queue mutex to ensure thread safety
                 task_queue_.push(def);
-                queu_updated_signal.release();
+                queu_updated_signal.release(); // Notify the processing thread that a new task is available
             }
         }
     }
@@ -398,18 +398,17 @@ private:
     {
         while (should_run_) {
 
-            queu_updated_signal.try_acquire_for(std::chrono::milliseconds(100));
+            queu_updated_signal.try_acquire_for(std::chrono::milliseconds(100)); // Wait for a task to be queued, or timeout after 100ms.
 
             if (!task_queue_.empty()) {
 
-                take_from_queu_signal.acquire();
+                take_from_queu_signal.acquire(); // binary semaphore to ensure only one thread takes from the queue at a time
                 TaskDef task_def = task_queue_.front();
                 task_queue_.pop();
-
-                take_from_queu_signal.release();
+                take_from_queu_signal.release(); // release the semaphore
 
                 fs::path subfolder = "output";
-                if ( !fileExistsInSubfolder(task_def.fname_in, subfolder)) {
+                if ( !fileExistsInSubfolder(task_def.fname_in, subfolder)) { // Check if the file exists in the cache
                     TaskRunner runner(task_def);
                     runner();
                 }
