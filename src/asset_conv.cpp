@@ -257,6 +257,7 @@ public:
     ~Processor()
     {
         should_run_ = false;
+        
         for (auto& qthread: queue_threads_) {
             qthread.join();
         }
@@ -342,7 +343,7 @@ private:
     {
         while (should_run_) {
 
-            queu_updated_signal.acquire();
+            queu_updated_signal.try_acquire_for(std::chrono::milliseconds(100));
 
             if (!task_queue_.empty()) {
 
