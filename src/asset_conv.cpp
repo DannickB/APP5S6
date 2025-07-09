@@ -16,6 +16,7 @@
 #include <mutex>
 #include <string>
 #include <filesystem>
+#include <atomic>
 
 namespace fs = std::filesystem;
 
@@ -224,7 +225,7 @@ private:
     using PNGHashMap = std::unordered_map<std::string, PNGDataPtr>;
     PNGHashMap png_cache_;
 
-    bool should_run_;           // Used to signal the end of the processor to
+    std::atomic<bool> should_run_;           // Used to signal the end of the processor to
                                 // threads.
 
     std::vector<std::thread> queue_threads_;
