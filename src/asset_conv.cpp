@@ -15,6 +15,9 @@
 #include <semaphore>
 #include <mutex>
 #include <string>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 namespace gif643 {
 
@@ -263,6 +266,57 @@ public:
         }
     }
 
+    bool fileExistsInSubfolder(const std::string base_name, const fs::path& subfolder) {
+        
+        std::string stem = fs::path(base_name).stem().string();
+        fs::path cache_file = subfolder / "cache.txt";
+
+        std::lock_guard<std::mutex> cache_lock(cache_mutex_);
+
+        // Subfolder must be a valid directory.
+        if (!fs::exists(subfolder) || !fs::is_directory(subfolder)) {
+            std::cerr << "Subfolder does not exist: " << subfolder << "\n";
+            return false;
+        }
+
+        // Create the file if it does not exist
+        if (!fs::exists(cache_file)) {
+            std::ofstream create_file(cache_file);
+            if (!create_file) {
+                std::cerr << "Failed to create cache file: " << cache_file << "\n";
+                return false;
+            }
+            create_file.close();
+        }
+
+        // Read the file line by line to find a match
+        std::ifstream infile(cache_file);
+        if (!infile) {
+            std::cerr << "Failed to open file: " << cache_file << "\n";
+            return false;
+        }
+
+        std::string line;
+        while (std::getline(infile, line)) {
+            if (line == stem) {
+                std::cout << "Match found for \"" << stem << "\" in cache file.\n";
+                return true;
+            }
+        }
+        infile.close();
+
+        // Not found, append fname_in to file
+        std::ofstream outfile(cache_file, std::ios::app);
+        if (!outfile) {
+            std::cerr << "Failed to open file for appending: " << cache_file << "\n";
+            return false;
+        }
+
+        outfile << stem << '\n';
+        std::cout << "Appended \"" << stem << "\" to cache file.\n";
+        return false;
+    }
+
     /// \brief Parse a task definition string and fills the references TaskDef
     ///        structure. Returns true if it's a success, false if a failure 
     ///        occured and the structure is not valid.
@@ -351,16 +405,14 @@ private:
                 TaskDef task_def = task_queue_.front();
                 task_queue_.pop();
 
-                std::string key = task_def.fname_in + ";" + std::to_string(task_def.size);
-                auto it = png_cache_.find(key);
-                
                 take_from_queu_signal.release();
 
-                if ( it == png_cache_.end()) {
-                    png_cache_.insert({key, nullptr});
+                fs::path subfolder = "output";
+                if ( !fileExistsInSubfolder(task_def.fname_in, subfolder)) {
                     TaskRunner runner(task_def);
                     runner();
                 }
+
             }
         }
     }
